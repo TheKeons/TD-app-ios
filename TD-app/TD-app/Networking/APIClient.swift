@@ -876,8 +876,7 @@ extension Data {
 }
 
 nonisolated extension URL {
-    /// Creates a URL from a hard-coded string. A typo stops the app with a
-    /// clear message the first time the line runs, so it can't reach users.
+    /// Creates a URL from a hard-coded string.
     init(staticString: StaticString) {
         guard let url = URL(string: "\(staticString)") else {
             preconditionFailure("Invalid URL literal: \(staticString)")
