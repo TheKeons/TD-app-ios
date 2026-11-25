@@ -25,7 +25,7 @@ This is a guide on what needs reviewing in the code. As the codebase is mostly A
     - If something looks wrong or inefficient, rewrite it or get an AI to do so.
  
 4. **Correctness & safety**
-    - No force unwraps (`!`) or force-try (`try!`) without a clear comment explaining why it's safe
+    - No force unwraps (`!`), force-try (`try!`) or implicitly unwrapped optionals (`Type!`) - swift-format rejects them
     - Check for retain cycles - `[weak self]` in closures that capture `self` and outlive the current scope
 
     ```swift
