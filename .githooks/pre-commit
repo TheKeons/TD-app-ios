@@ -3,22 +3,33 @@
 # Enable once per clone: git config core.hooksPath .githooks
 set -euo pipefail
 
-status=0
+# Nothing staged, such as when only rewording a commit.
+git diff --cached --quiet && exit
+
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+
 while IFS= read -r -d '' file; do
-    if git diff --quiet -- "$file"; then
-        xcrun swift-format format --in-place "$file"
-        git add -- "$file"
-    elif ! xcrun swift-format lint --strict "$file"; then
-        # Partly staged: formatting would also stage the unstaged edits,
-        # so only check it.
-        status=1
+    mode=$(git ls-files --stage -- ":(literal)$file" | cut -d ' ' -f 1)
+    [ "$mode" != 120000 ] || continue  # Symbolic link.
+
+    # Format the staged version, so partly staged files work too.
+    git cat-file blob ":$file" > "$tmp/staged"
+    xcrun swift-format format --configuration .swift-format \
+        --assume-filename "./$file" - < "$tmp/staged" > "$tmp/formatted"
+    cmp -s "$tmp/staged" "$tmp/formatted" && continue
+    blob=$(git hash-object -w "$tmp/formatted")
+    git update-index --cacheinfo "$mode,$blob,$file"
+
+    # Merge the formatting into the working copy, keeping unstaged edits. If
+    # they overlap, leave the working copy alone.
+    if [ -f "./$file" ] && git merge-file -p -q \
+        "./$file" "$tmp/staged" "$tmp/formatted" > "$tmp/merged"; then
+        cat "$tmp/merged" > "./$file"
     fi
 done < <(git diff --cached --name-only -z --diff-filter=ACMR -- '*.swift')
 
-if [ "$status" -ne 0 ]; then
-    echo "pre-commit: fix the formatting above (⌃⇧I in Xcode) and stage it." >&2
-elif git diff --cached --quiet; then
+if git diff --cached --quiet; then
     echo "pre-commit: nothing left to commit after formatting." >&2
-    status=1
+    exit 1
 fi
-exit "$status"
